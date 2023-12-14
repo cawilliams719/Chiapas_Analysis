@@ -75,15 +75,15 @@ chiapas <- c(chiapas_2000s, chiapas_2010s, chiapas_2020s, chiapas_2030s,
 rm(chiapas_2000s, chiapas_2010s, chiapas_2020s, chiapas_2030s, chiapas_2040s, 
    chiapas_2050s, chiapas_2060)
 
-# Calculate annual precipitation (Mean or Total?)
-## Monthly Mean
-monthly_mean <- chiapas %>% aggregate(., by = "1 month", FUN = mean) %>% 
-  aperm(., c("x", "y", "time")) 
-
-## Annual - Question on which mean to use
-## Sum of Monthly Mean
-total_annual_mean <- monthly_mean %>% aggregate(., by = "1 year", FUN = sum) %>% 
-  aperm(., c("x", "y", "time")) 
+# Calculate Annual Precipitation (Total)
+# ## Monthly Mean
+# monthly_mean <- chiapas %>% aggregate(., by = "1 month", FUN = mean) %>% 
+#   aperm(., c("x", "y", "time")) 
+# 
+# ## Annual 
+# ## Sum of Monthly Mean
+# total_annual_mean <- monthly_mean %>% aggregate(., by = "1 year", FUN = sum) %>% 
+#   aperm(., c("x", "y", "time")) 
 
 ## Sum from Daily
 total_annual <- chiapas %>% aggregate(., by = "1 year", FUN = sum) %>% 
@@ -122,12 +122,12 @@ subtracted1 <- change1 %>% aggregate(., by = "2 years", FUN = subtract) %>%
   aperm(., c("x", "y", "time"))
 
 ## Change Period 3-1: (2041-2060) - (2001-2020)
-mean_total_annual_1_tchange2 <- st_set_dimensions(mean_total_annual_1, "time", as.POSIXct("2040-01-01")) # Reset time
+mean_total_annual_1_tchange2 <- st_set_dimensions(mean_total_annual_1, "time", as.POSIXct("2040-01-01")) # Reset time again
 change2 <- c(mean_total_annual_1_tchange2, mean_total_annual_3) # combine two time periods to one star object
 st_get_dimension_values(change2, "time") # check dates
 
 
-subtracted2 <- change2 %>% aggregate(., by = "40 years", FUN = subtract) %>%
+subtracted2 <- change2 %>% aggregate(., by = "2 years", FUN = subtract) %>%
   aperm(., c("x", "y", "time"))
 
 # Percent Change in Precipitation
