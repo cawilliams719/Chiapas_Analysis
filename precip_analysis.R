@@ -160,7 +160,7 @@ ggplot() +
   ncol(3) +
   nrow(1) +
   # borders("world", xlim = c(-95.1, -89.4), ylim = c(13.5, 19.0)) +
-  labs(title = "Average Annual Precipitation") +
+  labs(title = "Total Annual Precipitation") +
   theme(legend.position = "bottom") +
   theme(legend.key.width = unit(1.5, "cm"))
 
