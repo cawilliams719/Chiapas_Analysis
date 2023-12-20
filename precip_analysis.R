@@ -12,6 +12,7 @@ library(viridis)
 library(viridisLite)
 library(cowplot)
 library(furrr)
+library(evd)
 
 
 ################################################################################
@@ -109,6 +110,66 @@ a$pr-b$pr # all output pixels are 0 or NA
 
 ## Percent Change Period 3-1: (2041-2060) - (2001-2020)
 perchangeim2 <- mapply(perchange, mean_total_annual_1, mean_total_annual_2, SIMPLIFY = FALSE)
+
+
+# Precipitation Extremes
+# Calculate Annual Precipitation (Maximum) per Time Period
+## 2001-2020
+max_annual_1 <- precip[1:length(precip)] %>%
+  map(function(f) {
+    filter(f, time >= "2001-01-01", time < "2021-01-01") %>% 
+      aggregate(by = "1 year", FUN = max)
+  })
+
+## 2021-2040
+max_annual_2 <- precip[1:length(precip)] %>% 
+  map(function(f) {
+    filter(f, time >="2021-01-01", time < "2041-01-01") %>% 
+      aggregate(by = "1 year", FUN = max) 
+  })
+
+## 2041-2060
+max_annual_3 <- precip[1:length(precip)] %>% 
+  map(function(f) {
+    filter(f, time >= "2041-01-01", time < "2061-01-01") %>% 
+      aggregate(by = "1 year", FUN = max) 
+  })
+
+################################################################################
+## TESTING Quantile
+# quantile(max_annual_1[[1]]$pr, 0.99, na.rm = TRUE) # produces one numerical output
+
+
+quantile_99_1 <- max_annual_1[1:length(max_annual_1)] %>% 
+  map(function(y) {
+    st_apply(y, 2:3, function(q) { 
+      quantile(q, 0.99, na.rm = TRUE)
+    })
+  })
+
+quantile_99_2 <- max_annual_2[1:length(max_annual_2)] %>% 
+  map(function(y) {
+    st_apply(y, 2:3, function(q) { 
+      quantile(q, 0.99, na.rm = TRUE)
+    })
+  })
+
+quantile_99_3 <- max_annual_3[1:length(max_annual_3)] %>% 
+  map(function(y) {
+    st_apply(y, 2:3, function(q) { 
+      quantile(q, 0.99, na.rm = TRUE)
+    })
+  })
+
+
+# ## TESTING Probability
+# t3 <- max_annual_1[[1]] %>% st_apply(., 1:3, function(q) { 
+#   quantile(q, 0.99, na.rm = TRUE) = "200mm"
+#   ecdf(q)
+# })
+# 
+# ## TESTING EV Distribution
+# pgev(max_annual_1[[1]]$pr)
 
 ################################################################################
 
