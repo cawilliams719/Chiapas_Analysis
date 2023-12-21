@@ -7,6 +7,7 @@
 # Import libraries
 library(stars)
 library(tidyverse)
+library(forstringr)
 library(ggthemes)
 library(viridis)
 library(viridisLite)
@@ -43,13 +44,19 @@ pattern <- "Chiapas_pr_ACCESS"
 #                ymin = 13.5,
 #                xmax = -89.4,
 #                ymax = 19.0))
-  
+
+# List of cmip6 model names
+models <- working_dir %>% list.files(full.names = FALSE, pattern = pattern) %>% str_extract_part("_ssp245", before = TRUE)
+
 # Read in precipitation data
 precip <- working_dir %>% 
   list.files(full.names = TRUE, pattern = pattern) %>% 
   map(function(f) {
     read_ncdf(f, proxy = FALSE)
   }) 
+
+# Set names of models in stars object list
+precip <- setNames(precip, models)
 
 # Calculate Annual Precipitation (Total)
 ## Sum from Daily
@@ -137,9 +144,7 @@ max_annual_3 <- precip[1:length(precip)] %>%
 
 ################################################################################
 ## TESTING Quantile
-# quantile(max_annual_1[[1]]$pr, 0.99, na.rm = TRUE) # produces one numerical output
-
-
+## Shows tails
 quantile_99_1 <- max_annual_1[1:length(max_annual_1)] %>% 
   map(function(y) {
     st_apply(y, 2:3, function(q) { 
@@ -162,10 +167,24 @@ quantile_99_3 <- max_annual_3[1:length(max_annual_3)] %>%
   })
 
 
-# ## TESTING Probability
-# t3 <- max_annual_1[[1]] %>% st_apply(., 1:3, function(q) { 
+## TESTING Probability
+# ECDF plot shows probability that precipitation is equal to or less than a certain number
+fn <- ecdf(max_annual_1[[1]]$pr) # outputs sum probability for model 1  20 year period
+plot(fn)
+fn(200)
+summary(fn)
+
+ecdf_test <- max_annual_1[1:length(max_annual_1)] %>% # outputs ecdf 200 for each year for both models
+  map(function(y) {
+    apply(y$pr, 1, function(q) { 
+      ecdf(q)(200)
+    })
+  })
+
+# t3 <- max_annual_1[[1]] %>% st_apply(., 1:3, function(q) {
 #   quantile(q, 0.99, na.rm = TRUE) = "200mm"
 #   ecdf(q)
+#   gev()
 # })
 # 
 # ## TESTING EV Distribution
