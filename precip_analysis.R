@@ -16,7 +16,6 @@ library(cowplot)
 library(furrr)
 library(evd)
 
-
 ################################################################################
 # Read in file paths & file pattern
 ## To replicate:
@@ -202,82 +201,18 @@ GEV_test <- ecdf_1[1:length(ecdf_1)] %>%
 
 ################################################################################
 
-# Visualize outputs - Testing and updating maps
-
-## Average Total Precipitation: 2001-2020, 2021-2040, 2041-2060
-### Change time labels for visuals
-time_labels <- c("2001-2020", "2021-2040", "2041-2060")
-names(time_labels) <- c("2001-01-01", "2021-01-01", "2041-01-01")
-
-test_var <- mean_total_annual_1
-
-# now add the title
-title <- ggdraw() + 
-  draw_label(
-    "Average Total Annual Precipitation",
-    fontface = 'bold',
-    x = 0,
-    hjust = 0
-  ) +
-  theme(
-    # add margin on the left of the drawing canvas,
-    # so title is aligned with left edge of first plot
-    plot.margin = margin(0, 0, 0, 7)
-  )
-# TESTING multiple models and plots
-t1 <- mean_total_annual_1[1:length(mean_total_annual_1)] %>% 
-  map(function(p) {
-    ggplot() + 
-      geom_stars(data = p) +
-      scale_fill_viridis_c(option = "D") +
-      coord_equal() +
-      theme_map() +
-      labs(subtitle = "2001-2020") +
-      theme(legend.position = "bottom") +
-      theme(legend.key.width = unit(1.5, "cm"))
- }) %>% 
-  plot_grid(plotlist = ., nrow = 1, ncol = 2, labels = models)
-
-
-t2 <- mean_total_annual_2[1:length(mean_total_annual_2)] %>% 
-  map(function(p) {
-    ggplot() + 
-      geom_stars(data = p) +
-      scale_fill_viridis_c(option = "D") +
-      coord_equal() +
-      theme_map() +
-      labs(subtitle = "2021-2040") +
-      theme(legend.position = "bottom") +
-      theme(legend.key.width = unit(1.5, "cm"))
-  }) %>% 
-  plot_grid(plotlist = ., nrow = 1, ncol = 2, labels = models)
-
-t3 <- mean_total_annual_3[1:length(mean_total_annual_3)] %>% 
-  map(function(p) {
-    ggplot() + 
-      geom_stars(data = p) +
-      scale_fill_viridis_c(option = "D") +
-      coord_equal() +
-      theme_map() +
-      labs(subtitle = "2041-2060") +
-      theme(legend.position = "bottom") +
-      theme(legend.key.width = unit(1.5, "cm"))
-  }) %>% 
-  plot_grid(plotlist = ., nrow = 1, ncol = 2, labels = models)
-
-plot_grid(t1, t2, t3, nrow = 3)
+# Visualize outputs
+## View and select model for all map precipitation outputs
+names(precip) # Examine list of models in console
+plot_model <- names(precip[2]) # Select index number corresponding to model of interest or replace with model string
 
 ## Average Total Precipitation: 2001-2020, 2021-2040, 2041-2060
 ### Subtitle time  labels for visuals
 time_labels <- c("2001-2020", "2021-2040", "2041-2060")
 
-## Select model
-## List models
-names(precip) # Examine list of models
-plot_model <- names(precip[2]) # Select index of model you wish to view or write model name as a string
-
 ### Map Annual Total Precipitation
-m <- map(c(mean_total_annual_1[plot_model], 
+#### Map with legend first to call later separately
+mta_legend <- map(c(mean_total_annual_1[plot_model], 
            mean_total_annual_2[plot_model], 
            mean_total_annual_3[plot_model]), 
          function(p) {
@@ -289,10 +224,8 @@ m <- map(c(mean_total_annual_1[plot_model],
              theme(legend.position = "bottom") +
              theme(legend.key.width = unit(1.5, 'cm'))
            })
-
-legend <- get_legend(m[[1]] + theme(legend.box.margin = margin(20, 100, 80, 60)))
-
-m2 <- map(c(mean_total_annual_1[plot_model], 
+#### Map without legend that will later have single legend added
+mta_nolegend <- map(c(mean_total_annual_1[plot_model], 
             mean_total_annual_2[plot_model], 
             mean_total_annual_3[plot_model]), 
          function(p) {
@@ -303,18 +236,25 @@ m2 <- map(c(mean_total_annual_1[plot_model],
              theme(legend.position = "none")
            })
 
-p <- plot_grid(plotlist = m2, 
-            nrow = 1, 
-            ncol = 3, 
-            labels = time_labels,
-            label_size = 12) 
+#### Add time ranges as labels to no legend map
+p_mta_nolegend <- plot_grid(plotlist = mta_nolegend, 
+               nrow = 1, 
+               ncol = 3, 
+               labels = time_labels,
+               label_size = 12) 
 
-p2 <- plot_grid(p + theme(legend.position = "none"), legend, 
-          rel_heights = c(0.8, 0.2), nrow = 2, ncol = 1)
+#### Add legend and modify postion
+p_mta_legend <- plot_grid(p_mta_nolegend + theme(legend.position = "none"), 
+                get_legend(mta_legend[[1]] + theme(legend.box.margin = margin(20, 100, 80, 60))),
+                rel_heights = c(0.8, 0.2), 
+                nrow = 2, 
+                ncol = 1)
 
-
+#### Create new ggplot with overarching title and subtitle
 title_gg <- ggplot() + 
   labs(title = "Average Total Annual Precipitation", subtitle = str_glue("Model: {plot_model}")) 
+
+#### Final plot for Average Total Annual precipitation
 plot_grid(title_gg, p2, ncol = 1, rel_heights = c(0.15, 1))
 
 
