@@ -7,6 +7,7 @@
 # Import libraries
 library(stars)
 library(tidyverse)
+library(stringr)
 library(forstringr)
 library(ggthemes)
 library(viridis)
@@ -17,33 +18,13 @@ library(evd)
 
 
 ################################################################################
-# Copy files from cmip6_data to persistent drive
-## Set source folder and destination folder paths
-from_dir <- "/home/cwilliams/cmip6_directory/kgassert_TEMP/Chiapas/pr"
-# Set working directory for data downloads and reading in files
-working_dir <- "/home/cwilliams/persistent_disk/chiapas/precip/data/"
+# Read in file paths & file pattern
+## To replicate:
+## 1. Create a separate R script in the same working directory called "file_paths.R"
+## 2. Set variables working_dir and pattern (ex: working_dir <- "C:/users/file_path/working_dir/)
+## This file path script can also be used to copy files to/from directories
+source("file_paths.R")
 
-## Set file pattern to detect in from_dir
-pattern <- "Chiapas_pr_ACCESS"
-
-# ###############################################################################
-# ## List and copy files from cmip6_data bucket to persistent drive
-# from_dir %>%
-#   list.files(full.names = TRUE, pattern = pattern) %>%
-#   map(function(f) {
-#     f_gs <- str_replace(f, "/home/cwilliams/cmip6_directory", "gs://cmip6_data")
-# 
-#     str_glue("gsutil cp {f_gs} {working_dir}") %>%
-#       system()
-#   })
-# ###############################################################################
-
-# Read and Pre-process Data
-## Set Chiapas extent
-# bb = st_bbox(c(xmin = -95.1,
-#                ymin = 13.5,
-#                xmax = -89.4,
-#                ymax = 19.0))
 
 # List of cmip6 model names
 models <- working_dir %>% list.files(full.names = FALSE, pattern = pattern) %>% str_extract_part("_ssp245", before = TRUE)
@@ -174,7 +155,29 @@ plot(fn)
 fn(200)
 summary(fn)
 
-ecdf_test <- max_annual_1[1:length(max_annual_1)] %>% # outputs ecdf 200 for each year for both models
+ecdf_1 <- max_annual_1[1:length(max_annual_1)] %>% # outputs ecdf 200 for each year for both models
+  map(function(y) {
+    apply(y$pr, 1, function(q) { 
+      ecdf(q)(200)
+    })
+  })
+
+ecdf_2 <- max_annual_2[1:length(max_annual_2)] %>% # outputs ecdf 200 for each year for both models
+  map(function(y) {
+    apply(y$pr, 1, function(q) { 
+      ecdf(q)(200)
+    })
+  })
+
+ecdf_3 <- max_annual_3[1:length(max_annual_3)] %>% # outputs ecdf 200 for each year for both models
+  map(function(y) {
+    apply(y$pr, 1, function(q) { 
+      ecdf(q)(200)
+    })
+  })
+
+# Test - Do i feed quantile in ecdf? ...
+ecdf_test <- quantile_99_1[1:length(quantile_99_1)] %>% # outputs ecdf 200 for each year for both models
   map(function(y) {
     apply(y$pr, 1, function(q) { 
       ecdf(q)(200)
@@ -190,55 +193,131 @@ ecdf_test <- max_annual_1[1:length(max_annual_1)] %>% # outputs ecdf 200 for eac
 # ## TESTING EV Distribution
 # pgev(max_annual_1[[1]]$pr)
 
+GEV_test <- ecdf_1[1:length(ecdf_1)] %>% 
+  map(function(y) {
+    apply(y, 1:length(ecdf_1), function(q) { 
+      pgev(q, loc=0, scale=1, shape=0)
+    })
+  })
+
 ################################################################################
 
 # Visualize outputs - Testing and updating maps
 
-# TESTING - 2 models x 2 difference maps
-s1 <- subtracted1 %>% 
-  map(function(f) {
-    ggplot() +  
-      geom_stars(data = f) + 
+## Average Total Precipitation: 2001-2020, 2021-2040, 2041-2060
+### Change time labels for visuals
+time_labels <- c("2001-2020", "2021-2040", "2041-2060")
+names(time_labels) <- c("2001-01-01", "2021-01-01", "2041-01-01")
+
+test_var <- mean_total_annual_1
+
+# now add the title
+title <- ggdraw() + 
+  draw_label(
+    "Average Total Annual Precipitation",
+    fontface = 'bold',
+    x = 0,
+    hjust = 0
+  ) +
+  theme(
+    # add margin on the left of the drawing canvas,
+    # so title is aligned with left edge of first plot
+    plot.margin = margin(0, 0, 0, 7)
+  )
+# TESTING multiple models and plots
+t1 <- mean_total_annual_1[1:length(mean_total_annual_1)] %>% 
+  map(function(p) {
+    ggplot() + 
+      geom_stars(data = p) +
       scale_fill_viridis_c(option = "D") +
       coord_equal() +
       theme_map() +
-      labs(subtitle = "(2021-2040) - (2001-2020)") 
-  })
-s2 <- subtracted2 %>% 
-  map(function(f) {
-    ggplot() +  
-      geom_stars(data = f) + 
+      labs(subtitle = "2001-2020") +
+      theme(legend.position = "bottom") +
+      theme(legend.key.width = unit(1.5, "cm"))
+ }) %>% 
+  plot_grid(plotlist = ., nrow = 1, ncol = 2, labels = models)
+
+
+t2 <- mean_total_annual_2[1:length(mean_total_annual_2)] %>% 
+  map(function(p) {
+    ggplot() + 
+      geom_stars(data = p) +
       scale_fill_viridis_c(option = "D") +
       coord_equal() +
       theme_map() +
-      labs(subtitle = "(2041-2060) - (2001-2020)") 
-  })
+      labs(subtitle = "2021-2040") +
+      theme(legend.position = "bottom") +
+      theme(legend.key.width = unit(1.5, "cm"))
+  }) %>% 
+  plot_grid(plotlist = ., nrow = 1, ncol = 2, labels = models)
 
-plot_grid(s1[[1]], s1[[2]],
-          s2[[1]], s2[[2]],
-          nrow = 2, ncol = 2, 
-          labels = "AUTO") 
+t3 <- mean_total_annual_3[1:length(mean_total_annual_3)] %>% 
+  map(function(p) {
+    ggplot() + 
+      geom_stars(data = p) +
+      scale_fill_viridis_c(option = "D") +
+      coord_equal() +
+      theme_map() +
+      labs(subtitle = "2041-2060") +
+      theme(legend.position = "bottom") +
+      theme(legend.key.width = unit(1.5, "cm"))
+  }) %>% 
+  plot_grid(plotlist = ., nrow = 1, ncol = 2, labels = models)
+
+plot_grid(t1, t2, t3, nrow = 3)
+
+## Average Total Precipitation: 2001-2020, 2021-2040, 2041-2060
+### Subtitle time  labels for visuals
+time_labels <- c("2001-2020", "2021-2040", "2041-2060")
+
+## Select model
+## List models
+names(precip) # Examine list of models
+plot_model <- names(precip[2]) # Select index of model you wish to view or write model name as a string
+
+### Map Annual Total Precipitation
+m <- map(c(mean_total_annual_1[plot_model], 
+           mean_total_annual_2[plot_model], 
+           mean_total_annual_3[plot_model]), 
+         function(p) {
+           ggplot() + 
+             geom_stars(data = p) +
+             scale_fill_viridis_c(option = "D", na.value = "transparent") +
+             coord_equal() +
+             labs(fill = "Precipitation") +
+             theme(legend.position = "bottom") +
+             theme(legend.key.width = unit(1.5, 'cm'))
+           })
+
+legend <- get_legend(m[[1]] + theme(legend.box.margin = margin(20, 100, 80, 60)))
+
+m2 <- map(c(mean_total_annual_1[plot_model], 
+            mean_total_annual_2[plot_model], 
+            mean_total_annual_3[plot_model]), 
+         function(p) {
+           ggplot() + 
+             geom_stars(data = p) +
+             scale_fill_viridis_c(option = "D", na.value = "transparent") +
+             coord_equal() +
+             theme(legend.position = "none")
+           })
+
+p <- plot_grid(plotlist = m2, 
+            nrow = 1, 
+            ncol = 3, 
+            labels = time_labels,
+            label_size = 12) 
+
+p2 <- plot_grid(p + theme(legend.position = "none"), legend, 
+          rel_heights = c(0.8, 0.2), nrow = 2, ncol = 1)
 
 
-# ## Average Total Precipitation: 2001-2020, 2021-2040, 2041-2060
-# ### Change time labels for visuals
-# time_labels <- c("2001-2020", "2021-2040", "2041-2060")
-# names(time_labels) <- c("2001-01-01", "2021-01-01", "2041-01-01")
-# 
-# ### Map Annual Total Precipitation
-# ggplot() +  
-#   geom_stars(data = c(mean_total_annual_1, mean_total_annual_2, mean_total_annual_3)) + 
-#   facet_wrap("time", labeller = labeller("time" = time_labels)) +
-#   scale_fill_viridis_c(option = "D") +
-#   coord_equal() +
-#   theme_map() +
-#   ncol(3) +
-#   nrow(1) +
-#   # borders("world", xlim = c(-95.1, -89.4), ylim = c(13.5, 19.0)) +
-#   labs(title = "Average Total Annual Precipitation") +
-#   theme(legend.position = "bottom") +
-#   theme(legend.key.width = unit(1.5, "cm"))
-# 
+title_gg <- ggplot() + 
+  labs(title = "Average Total Annual Precipitation", subtitle = str_glue("Model: {plot_model}")) 
+plot_grid(title_gg, p2, ncol = 1, rel_heights = c(0.15, 1))
+
+
 # ## Change in Precipitation: 2-1 & 3-1
 # ### Change time labels for visuals
 # time_labels_change <- c("(2021-2040) - (2001-2020)", "(2041-2060) - (2001-2020)")
