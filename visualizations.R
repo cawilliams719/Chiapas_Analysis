@@ -95,9 +95,10 @@ title_gg1 <- ggplot() +
   labs(title = "Average Total Annual Precipitation", subtitle = str_glue("Model: {plot_model}")) 
 
 #### Final plot for Average Total Annual precipitation
+jpeg(str_glue("{results_dir}plots/avg_total_annual_map_{plot_model}.jpg"), width = 692, height = 419) # open file to save map to
 mta_map <- plot_grid(title_gg1, p_mta_legend, ncol = 1, rel_heights = c(0.15, 1))
-mta_map
-
+mta_map # view map in RStudio
+dev.off() # close jpeg device
 
 ## Change in Precipitation: 2-1 & 3-1
 ### Subtitle time  labels for visuals
@@ -164,9 +165,10 @@ title_gg2 <- ggplot() +
   labs(title = "Change (mm) in Precipitation", subtitle = str_glue("Model: {plot_model}")) 
 
 #### Final plot for Change in Precipitation
+jpeg(str_glue("{results_dir}plots/change_map_{plot_model}.jpg"), width = 692, height = 419) # open file to save map to
 sub_map <- plot_grid(title_gg2, p_sub_legend, ncol = 1, rel_heights = c(0.1, 0.75))
-sub_map
-
+sub_map # view map in RStudio
+dev.off() # close jpeg device
 
 ## Percent Change in Precipitation: 2-1 & 3-1
 ### Get min/max values for scale limits to get a uniform legend/scale across comparison maps
@@ -230,9 +232,10 @@ title_gg3 <- ggplot() +
   labs(title = "Change (%) in Precipitation", subtitle = str_glue("Model: {plot_model}")) 
 
 #### Final plot for Percent Change in Precipitation
+jpeg(str_glue("{results_dir}plots/percent_change_map_{plot_model}.jpg"), width = 692, height = 419) # open file to save map to
 per_map <- plot_grid(title_gg3, p_per_legend, ncol = 1, rel_heights = c(0.1, 0.75))
-per_map
-
+per_map # view map in RStudio
+dev.off() # close jpeg device
 
 ## Quantile Maximum Precipitation: 2001-2020, 2021-2040, 2041-2060
 ### Get min/max values for scale limits to get a uniform legend/scale across comparison maps
@@ -300,5 +303,7 @@ title_gg4 <- ggplot() +
   labs(title = "Quantile Maximum Annual Precipitation", subtitle = str_glue("Model: {plot_model}")) 
 
 #### Final plot for Average Total Annual precipitation
+jpeg(str_glue("{results_dir}plots/quantile_map_{plot_model}.jpg"), width = 692, height = 419) # open file to save map to
 qnt_map <- plot_grid(title_gg4, p_qnt_legend, ncol = 1, rel_heights = c(0.15, 1))
-qnt_map
+qnt_map # view map in RStudio
+dev.off() # close jpeg device

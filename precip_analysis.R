@@ -210,4 +210,9 @@ rm("from_dir", "working_dir", "project_dir")
 ### Save data   
 save.image(file = precip_results)
 
-## Export NetCDF file results - IN PROGRESS
+## Export NetCDF file results
+### Create list of filenames to export results to
+results_filenames <- str_glue("{results_dir}data/{models}.nc")
+
+### Saves but removes refsys WGS 84 from metadata
+mapply(write_mdim, mean_total_annual_1, results_filenames, SIMPLIFY = FALSE)
