@@ -198,6 +198,25 @@ gev_3 <- max_annual_3[1:length(max_annual_3)] %>%
   })
 
 
+# Precipitation Seasonality
+## Sum from Daily by wet (May-Oct) and dry (Nov-April) season
+## TESTING SEASONAL AGGREGATION - In Progress
+### dates corresponding to start of wet and dry season for each year
+tm <- seq(as.POSIXct("2001-05-01"), by = "6 months", length.out = 120) # not sure if it aggregates between these dates
+
+### Aggregate by wet and dry season
+total_seasonal <- precip[1:length(precip)] %>% 
+  map(function(f) {
+    filter(f, time >= "2001-01-01", time < "2061-01-01") %>% 
+      aggregate(by = tm, FUN = sum) 
+  }) 
+
+# Calculate Seasonal Precipitation (Total) per Year per Time Period
+## 2001-2020
+## 2021-2040
+## 2041-2060
+
+
 ################################################################################
 # Export Data
 ## Save workspace to load in visualizations
