@@ -27,3 +27,19 @@
     
   })
     
+
+
+
+# ************
+
+"gsutil cp gs://cmip6_data/Chiapas/cwatm/hist_1990_2019_largedomain/sum_w1_monthavg.nc /mnt/pers_disk/chiapas_cmip6_sm" %>% 
+  system()
+
+
+"gsutil cp gs://cmip6_data/Chiapas/cwatm/future_largedomain/ssp585/2021_2040/GFDL-CM4/sum_w1_monthavg.nc /mnt/pers_disk/chiapas_cmip6_sm" %>%
+  system()
+
+"gsutil cp gs://cmip6_data/Chiapas/cwatm/future_largedomain/ssp585/2041_2060/GFDL-CM4/sum_w1_monthavg.nc /mnt/pers_disk/chiapas_cmip6_sm" %>%
+  system()
+  
+

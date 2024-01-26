@@ -111,7 +111,7 @@ l_s <-
     
 
 write_rds(l_s, str_glue("{working_dir}/l_s.rds"))
-
+read_rds(str_glue("{working_dir}/l_s.rds")) -> l_s
 
 
 # calculate pet
@@ -146,7 +146,7 @@ s_wb <- l_s$pr - s_pet
 
 time_vector_m <- st_get_dimension_values(s_wb, 3) %>% as_date()
 
-int_window <- 12
+int_window <- 3
 
 s_drought_perc <- 
   s_wb %>% 
@@ -163,7 +163,7 @@ s_drought_perc <-
         matrix(ncol = 12, byrow = T) %>% 
         apply(2, FUN = function(u) {
           
-          f_ecdf <- ecdf(u[1:30]) # baseline
+          f_ecdf <- ecdf(u[1:50]) # baseline
           
           f_ecdf(u)
           
@@ -173,15 +173,53 @@ s_drought_perc <-
       
     }
   },
+  FUTURE = T,
   .fname = "time") %>% 
   aperm(c(2,3,1)) %>% 
   st_set_dimensions(3, values = time_vector_m)
 
-
-s_drought_perc %>% 
+prob_extr_drought_perc <- 
+  s_drought_perc %>% 
   filter(year(time) >= 2001) %>% 
   aggregate(by = "20 years", FUN = function(x) mean(x <= 0.1)) %>% 
-  aperm(c(2,3,1)) -> prob_extr_drought
+  aperm(c(2,3,1))
+
+
+s_drought_perc_nr <- 
+  s_wb %>% 
+  st_apply(c(1,2), function(x) {
+    
+    if (any(is.na(x))) {
+      
+      rep(NA, length(x))
+      
+    } else {
+      
+      x %>% 
+        # zoo::rollsum(k = int_window, na.pad = T, align = "right") %>%
+        matrix(ncol = 12, byrow = T) %>% 
+        apply(2, FUN = function(u) {
+          
+          f_ecdf <- ecdf(u[1:50]) # baseline
+          
+          f_ecdf(u)
+          
+        }) %>% 
+        t() %>% 
+        as.vector()
+      
+    }
+  },
+  FUTURE = T,
+  .fname = "time") %>% 
+  aperm(c(2,3,1)) %>% 
+  st_set_dimensions(3, values = time_vector_m)
+
+prob_extr_drought_perc_nr <- 
+  s_drought_perc_nr %>% 
+  filter(year(time) >= 2001) %>% 
+  aggregate(by = "20 years", FUN = function(x) mean(x <= 0.1)) %>% 
+  aperm(c(2,3,1))
 
 
 
@@ -276,11 +314,32 @@ s_drought_perc %>%
     aperm(c(2,3,1))
   }
 
+int_window <- 12
 
+s_drought_spei <- 
+  s_wb %>% 
+  st_apply(c(1,2), function(x) {
+    
+    if (any(is.na(x))) {
+      
+      rep(NA, length(x))
+      
+    } else {
+      
+      SPEI::spei(x, scale = int_window, ref.end = c(50,12), verbose = F)$fitted
+      
+    }
+  },
+  FUTURE = T,
+  .fname = "time") %>% 
+  aperm(c(2,3,1)) %>% 
+  st_set_dimensions(3, values = time_vector_m)
 
-
-
-  
+prob_extr_drought_spei <- 
+  s_drought_spei %>% 
+  filter(year(time) >= 2001) %>% 
+  aggregate(by = "20 years", FUN = function(x) mean(x <= -1.25)) %>% 
+  aperm(c(2,3,1))
 
 
 
