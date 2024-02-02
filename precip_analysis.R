@@ -235,7 +235,7 @@ models %>%
     dist_analysis %>% 
       split("stat") %>%
       
-      # select(6) %>% mapview::mapview()
+      select(6) %>% mapview::mapview()
       
       
       
