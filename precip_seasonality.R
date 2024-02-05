@@ -118,3 +118,66 @@ m %>%
   # geom_text(data = locs, aes(x = lon, y = lat, label = loc), vjust = 1, nudge_y = -0.02, nudge_x = 0.05, size = 3) +
   facet_grid(~seas) +
   coord_quickmap()
+
+
+## TESTING & Writing Updated Version
+### Function to calculate attributes DOY, Year, etc.
+attr_calc <- function(s) {
+  s %>% 
+    map(function(i) {
+      matrix(i, 
+             nrow = nrow(st_get_dimension_values(chirps_stars, "lat")), 
+             ncol = nrow(st_get_dimension_values(chirps_stars, "lon")))
+    }) %>% unlist()
+}
+
+## Calculate DOY and year attributes
+doy_calc <- attr_calc(yday(st_get_dimension_values(chirps_stars, "time")))
+year_calc <- attr_calc(year(st_get_dimension_values(chirps_stars, "time")))
+
+## Add attributes to precipitation stars object
+test <- chirps_stars %>% 
+  mutate(doy = doy_calc, year = year_calc)
+
+
+
+
+test2 <- test %>%
+  st_apply(c(1,2), function(s) {
+    zoo::zoo(s["pr"], order.by = s["doy"])
+    # mean(s[1:366]) # don't think this works since some years are 365
+  })
+
+p  <-  as.vector(c(1, 3, 5, 9, 6, 7, 8, 0))
+doy <- as.vector(c(1, 2, 3, 4, 1, 2, 3, 4))
+
+zoo::zoo(p, doy)
+
+test2 <- test %>% 
+  mutate(daily_mean = mean(units::drop_units(pr)))
+
+test2 <- 
+  test[1,,,] %>% 
+  aggregate(by = 1:366, FUN = mean) %>% 
+  aperm(c(2,3,1))
+
+zdoy <- zoo::zoo(test$pr, test$doy)
+zyear <- zoo::zoo(test$pr, test$year)
+test2 <- test %>% mutate(daily_mean = zoo::zoo(pr, doy)) # maybe this works okay?
+test2 <- test %>% mutate(daily_mean = hydrostats::day.dist(pr))
+
+z2 <- aggregate(test$pr, test$doy, mean)
+
+# days = yday(st_get_dimension_values(chirps_stars, "time"))
+# factor(format(st_get_dimension_values(chirps_stars, "time"), "%j"), levels = as.factor(days))
+#
+
+# Calculate Daily Climatological Mean (DOY Averages)
+doy_agg = function(x) {
+  days = as.factor(yday(x))
+}
+
+doy_agg(st_get_dimension_values(chirps_stars, "time"))
+
+precip_doy_mean = chirps_stars[1,,,] %>% aggregate(doy_agg, mean) %>% aperm()
+dimnames(precip_doy_mean)[[3]] <- "doy"
