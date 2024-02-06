@@ -120,6 +120,12 @@ m %>%
   coord_quickmap()
 
 
+# Determine Annual vs Biannual Season
+harmonic <- geoTS::haRmonics(chirps_stars$pr, numFreq = 1, delta = 0.1)
+## If ratio is > 1 then biannual if < 1 then annual regime
+ratio <- harmonic$amplitude[2]/harmonic$amplitude[1]
+
+
 # Calculate Daily Climatological Mean (DOY Averages) per Pixel
 ## Get mean pixel values aggregated by day of year (DOY) 1-366
 precip_doy_mean <-  chirps_stars %>% 
@@ -168,7 +174,7 @@ onset <- precip_comb %>%
   }, 
   .fname = "onset") %>% 
   do.call("cbind",.) %>% 
-  replicate(366,.) %>% # duplicate by length of precip_doy_mean
+  replicate(length(st_get_dimension_values(precip_comb, 'doy')),.) %>% # duplicate by length of precip_doy_mean
   as.vector()
 
 cessation <- precip_comb %>% 
@@ -178,16 +184,13 @@ cessation <- precip_comb %>%
   }, 
   .fname = "cessation" ) %>% 
   do.call("cbind",.) %>% 
-  replicate(366,.) %>% # duplicate by length of precip_doy_mean
+  replicate(length(st_get_dimension_values(precip_comb, 'doy')),.) %>% # duplicate by length of precip_doy_mean
   as.vector()
 
 
 precip_seas <- precip_comb %>% 
   mutate(onset = onset,
-         cessation = cessation,
-         seas = case_when(st_get_dimension_values(., 'doy') >= onset & 
-                            st_get_dimension_values(., 'doy') < cessation ~ "wet", 
-                          .default = "dry"))
+         cessation = cessation)
 
 ## Visuals
 df <- precip_seas %>% 
@@ -212,6 +215,40 @@ seasonality <- ggplot(df, aes(x = doy, group =2)) +
   geom_point(aes(x = mean_cessation, y = 97), color = "purple") +
   labs(x = "DOY", y = "Summarized Variable of Interest")
 seasonality
-par(mfrow = c(1, 2))
-precip_map
-seasonality
+
+## TESTING SECOND PART involving year
+### Function to calculate attributes DOY, Year, etc.
+attr_calc <- function(s, r) {
+  s %>% 
+    map(function(i) {
+      matrix(i, 
+             nrow = nrow(st_get_dimension_values(r, "lat")), 
+             ncol = nrow(st_get_dimension_values(r, "lon")))
+    }) %>% unlist()
+}
+
+## Calculate DOY and year attributes
+doy_calc <- attr_calc(yday(st_get_dimension_values(chirps_stars, "time")), chirps_stars)
+year_calc <- attr_calc(year(st_get_dimension_values(chirps_stars, "time")), chirps_stars)
+
+## Fill onset and cessation matrix to length of time series
+onset_att <- precip_seas[,,,1]$onset %>%   
+  replicate(length(st_get_dimension_values(chirps_stars, 'time')),.) %>% # duplicate by length of precip_doy_mean
+  as.vector()
+
+cessation_att <- precip_seas[,,,1]$cessation %>%   
+  replicate(length(st_get_dimension_values(chirps_stars, 'time')),.) %>% # duplicate by length of precip_doy_mean
+  as.vector()
+
+## Add calculated attribtues
+precip_ts <- chirps_stars %>% 
+  mutate(doy = doy_calc, 
+         year = year_calc,
+         onset = onset_att,
+         cessation = cessation_att,
+         seas = case_when(doy >= onset & doy < cessation ~ "wet",
+                         TRUE ~ "dry"),
+         year = ifelse(doy >= cessation, year+1, year))
+
+
+
