@@ -121,63 +121,92 @@ m %>%
 
 
 ## TESTING & Writing Updated Version
-### Function to calculate attributes DOY, Year, etc.
+# Calculate Daily Climatological Mean (DOY Averages)
+## Get mean pixel values aggregated by day of year (DOY) 1-366
+precip_doy_mean <-  chirps_stars[1,,,] %>% aggregate(function(x) {
+  days = as.factor(yday(x))
+  }, mean, na.rm = T) %>% 
+  aperm(c(2,3,1))
+dimnames(precip_doy_mean)[[3]] <- "doy" # rename dimension
+
+
+precip_mean <- precip_doy_mean %>% 
+  st_apply(c(1:2), function(m) {
+    mean(m, na.rm = T)
+}) %>% 
+  do.call("cbind",.) %>% 
+  replicate(366,.) %>% 
+  as.vector()
+
+precip_anomaly <- precip_doy_mean %>% 
+  mutate(doy_mean = precip_mean, anomaly = pr - doy_mean)
+
+### Function to calculate attributes DOY
 attr_calc <- function(s) {
   s %>% 
     map(function(i) {
       matrix(i, 
-             nrow = nrow(st_get_dimension_values(chirps_stars, "lat")), 
-             ncol = nrow(st_get_dimension_values(chirps_stars, "lon")))
+             nrow = nrow(st_get_dimension_values(precip_anomaly, "lat")), 
+             ncol = nrow(st_get_dimension_values(precip_anomaly, "lon")))
     }) %>% unlist()
 }
 
-## Calculate DOY and year attributes
-doy_calc <- attr_calc(yday(st_get_dimension_values(chirps_stars, "time")))
-year_calc <- attr_calc(year(st_get_dimension_values(chirps_stars, "time")))
-
-## Add attributes to precipitation stars object
-test <- chirps_stars %>% 
-  mutate(doy = doy_calc, year = year_calc)
+## Calculate DOY attributes
+doy_calc <- attr_calc(as.vector(1:366))
 
 
+precip_cum <- precip_anomaly[3,,,] %>% 
+  st_apply(c(1:2), function(t) {
+    cumsum(t)
+  }) %>% aperm(c(2,3,1)) %>% 
+  mutate(cum_anomaly = anomaly) %>% 
+  select(cum_anomaly)
 
 
-test2 <- test %>%
-  st_apply(c(1,2), function(s) {
-    zoo::zoo(s["pr"], order.by = s["doy"])
-    # mean(s[1:366]) # don't think this works since some years are 365
-  })
+dimnames(precip_cum)[[3]] <- "doy" 
+precip_cum <- st_set_dimensions(
+  precip_cum, "doy",
+     values = st_get_dimension_values(precip_anomaly, 'doy', where = "start"))
 
-p  <-  as.vector(c(1, 3, 5, 9, 6, 7, 8, 0))
-doy <- as.vector(c(1, 2, 3, 4, 1, 2, 3, 4))
+precip_list <- list(precip_anomaly, precip_cum) 
+precip_comb <- do.call("c", precip_list) %>% mutate(doy_att = doy_calc)
 
-zoo::zoo(p, doy)
 
-test2 <- test %>% 
-  mutate(daily_mean = mean(units::drop_units(pr)))
+onset <- precip_comb$cum_anomaly %>% which.min()
+cessation <- precip_comb$cum_anomaly %>% which.max()
 
-test2 <- 
-  test[1,,,] %>% 
-  aggregate(by = 1:366, FUN = mean) %>% 
-  aperm(c(2,3,1))
+on <- precip_comb$doy_att[onset]
+ce <- precip_comb$doy_att[cessation]
 
-zdoy <- zoo::zoo(test$pr, test$doy)
-zyear <- zoo::zoo(test$pr, test$year)
-test2 <- test %>% mutate(daily_mean = zoo::zoo(pr, doy)) # maybe this works okay?
-test2 <- test %>% mutate(daily_mean = hydrostats::day.dist(pr))
+onset_calc <- attr_calc(on) %>% replicate(366,.)%>% 
+  as.vector()
+cessation_calc <- attr_calc(ce) %>% replicate(366,.)%>% 
+  as.vector()
 
-z2 <- aggregate(test$pr, test$doy, mean)
 
-# days = yday(st_get_dimension_values(chirps_stars, "time"))
-# factor(format(st_get_dimension_values(chirps_stars, "time"), "%j"), levels = as.factor(days))
-#
 
-# Calculate Daily Climatological Mean (DOY Averages)
-doy_agg = function(x) {
-  days = as.factor(yday(x))
-}
+precip_col <- precip_comb %>% mutate(onset = onset_calc,
+                       cessation = cessation_calc,
+                       seas = case_when(doy_att >= onset & doy_att < cessation ~ "wet",
+                                        .default = "dry"))
 
-doy_agg(st_get_dimension_values(chirps_stars, "time"))
 
-precip_doy_mean = chirps_stars[1,,,] %>% aggregate(doy_agg, mean) %>% aperm()
-dimnames(precip_doy_mean)[[3]] <- "doy"
+onset = which.min(cum_anomaly)
+cessation = which.max(cum_anomaly)
+mutate(seas = case_when(doy >= n$onset & doy < n$cessation ~ "wet",
+                        TRUE ~ "dry")
+
+
+
+## Visuals
+df <- precip_doy_mean %>% 
+  as.tbl_cube.stars() %>% 
+  group_by(doy) %>% 
+  summarise(mean_pr = mean(pr, na.rm = T)) %>% 
+  as.data.frame()
+
+seasonality <- ggplot(df, aes(doy, mean_pr, group = 1)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "DOY", y = "Daily Mean")
+seasonality
