@@ -120,85 +120,98 @@ m %>%
   coord_quickmap()
 
 
-## TESTING & Writing Updated Version
-# Calculate Daily Climatological Mean (DOY Averages)
+# Calculate Daily Climatological Mean (DOY Averages) per Pixel
 ## Get mean pixel values aggregated by day of year (DOY) 1-366
-precip_doy_mean <-  chirps_stars[1,,,] %>% aggregate(function(x) {
-  days = as.factor(yday(x))
-  }, mean, na.rm = T) %>% 
+precip_doy_mean <-  chirps_stars %>% 
+  aggregate(function(x) {
+    days = as.factor(yday(x))
+    }, mean, na.rm = T) %>% 
   aperm(c(2,3,1))
 dimnames(precip_doy_mean)[[3]] <- "doy" # rename dimension
 
-
+## Get mean pixel value across time series aggregated by DOY
 precip_mean <- precip_doy_mean %>% 
   st_apply(c(1:2), function(m) {
     mean(m, na.rm = T)
 }) %>% 
   do.call("cbind",.) %>% 
-  replicate(366,.) %>% 
+  replicate(366,.) %>% # duplicate by length of precip_doy_mean
   as.vector()
 
+## Add mean precipitation pixels as attribute
 precip_anomaly <- precip_doy_mean %>% 
-  mutate(doy_mean = precip_mean, anomaly = pr - doy_mean)
+  mutate(pr_mean = precip_mean, 
+         anomaly = pr - pr_mean) # subtract pixels for each time slice by mean precip
 
-### Function to calculate attributes DOY
-attr_calc <- function(s) {
-  s %>% 
-    map(function(i) {
-      matrix(i, 
-             nrow = nrow(st_get_dimension_values(precip_anomaly, "lat")), 
-             ncol = nrow(st_get_dimension_values(precip_anomaly, "lon")))
-    }) %>% unlist()
-}
-
-## Calculate DOY attributes
-doy_calc <- attr_calc(as.vector(1:366))
-
-
+## Calculate cumulative sum
 precip_cum <- precip_anomaly[3,,,] %>% 
   st_apply(c(1:2), function(t) {
     cumsum(t)
-  }) %>% aperm(c(2,3,1)) %>% 
+  }) %>% 
+  aperm(c(2,3,1)) %>% 
   mutate(cum_anomaly = anomaly) %>% 
   select(cum_anomaly)
+dimnames(precip_cum)[[3]] <- "doy" # rename dimension
+precip_cum <- st_set_dimensions(precip_cum, "doy", # reset doy values
+                                values = st_get_dimension_values(
+                                  precip_anomaly, 'doy', where = "start"))
 
+## Combine anomaly and cumulative anomaly stars objects
+precip_comb <- list(precip_anomaly, precip_cum) %>% 
+  do.call("c", .)
 
-dimnames(precip_cum)[[3]] <- "doy" 
-precip_cum <- st_set_dimensions(
-  precip_cum, "doy",
-     values = st_get_dimension_values(precip_anomaly, 'doy', where = "start"))
-
-precip_list <- list(precip_anomaly, precip_cum) 
-precip_comb <- do.call("c", precip_list) %>% mutate(doy_att = doy_calc)
-
-
-onset <- precip_comb$cum_anomaly %>% which.min()
-cessation <- precip_comb$cum_anomaly %>% which.max()
-
-on <- precip_comb$doy_att[onset]
-ce <- precip_comb$doy_att[cessation]
-
-onset_calc <- attr_calc(on) %>% replicate(366,.)%>% 
-  as.vector()
-cessation_calc <- attr_calc(ce) %>% replicate(366,.)%>% 
+# Calculate Onset and Cessation
+onset <- precip_comb %>% 
+  select(cum_anomaly) %>% 
+  st_apply(1:2, function (i) {
+    onset <- which.min(i)
+  }, 
+  .fname = "onset") %>% 
+  do.call("cbind",.) %>% 
+  replicate(366,.) %>% # duplicate by length of precip_doy_mean
   as.vector()
 
+cessation <- precip_comb %>% 
+  select(cum_anomaly) %>% 
+  st_apply(1:2, function (i) {
+    cessation <- which.max(i)
+  }, 
+  .fname = "cessation" ) %>% 
+  do.call("cbind",.) %>% 
+  replicate(366,.) %>% # duplicate by length of precip_doy_mean
+  as.vector()
 
 
-precip_col <- precip_comb %>% mutate(onset = onset_calc,
-                       cessation = cessation_calc,
-                       seas = case_when(doy_att >= onset & doy_att < cessation ~ "wet",
-                                        .default = "dry"))
+precip_seas <- precip_comb %>% 
+  mutate(onset = onset,
+         cessation = cessation,
+         seas = case_when(st_get_dimension_values(., 'doy') >= onset & 
+                            st_get_dimension_values(., 'doy') < cessation ~ "wet", 
+                          .default = "dry"))
 
 ## Visuals
-df <- precip_doy_mean %>% 
+df <- precip_seas %>% 
   as.tbl_cube.stars() %>% 
   group_by(doy) %>% 
-  summarise(mean_pr = mean(pr, na.rm = T)) %>% 
+  summarise(mean_pr = mean(pr),
+            mean_anom = mean(anomaly),
+            mean_cum_anom = mean(cum_anomaly, na.rm = T),
+            mean_onset = mean(onset),
+            mean_cessation = mean(cessation)) %>% 
   as.data.frame()
 
-seasonality <- ggplot(df, aes(doy, mean_pr, group = 1)) +
-  geom_point() +
-  geom_line() +
-  labs(x = "DOY", y = "Daily Mean")
+precip_map <- ggplot(df, aes(x = doy, group =2)) +
+  geom_line(aes(y = mean_pr), color = "red") +
+  geom_line(aes(y = mean_anom), color = "blue") +
+  labs(x = "DOY", y = "Summarized Variable of Interest")
+precip_map
+
+seasonality <- ggplot(df, aes(x = doy, group =2)) +
+  geom_line(aes(y = mean_cum_anom), color = "orange") +
+  geom_point(aes(x = mean_onset, y = -460), color = "green") +
+  geom_point(aes(x = mean_cessation, y = 97), color = "purple") +
+  labs(x = "DOY", y = "Summarized Variable of Interest")
+seasonality
+par(mfrow = c(1, 2))
+precip_map
 seasonality
