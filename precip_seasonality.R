@@ -190,14 +190,6 @@ precip_col <- precip_comb %>% mutate(onset = onset_calc,
                        seas = case_when(doy_att >= onset & doy_att < cessation ~ "wet",
                                         .default = "dry"))
 
-
-onset = which.min(cum_anomaly)
-cessation = which.max(cum_anomaly)
-mutate(seas = case_when(doy >= n$onset & doy < n$cessation ~ "wet",
-                        TRUE ~ "dry")
-
-
-
 ## Visuals
 df <- precip_doy_mean %>% 
   as.tbl_cube.stars() %>% 
