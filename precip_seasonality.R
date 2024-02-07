@@ -39,7 +39,6 @@ seasonal_map <- map_df(seq_along(st_get_dimension_values(chirps_stars, "lon")), 
              r = r,
              onset = n$onset,
              cessation = n$cessation)
-
   })
 }) %>% suppressMessages()
 
@@ -56,7 +55,7 @@ seasonal_map %>%
             cessation = as_date(mean(cessation))) 
 
 ####
-m <- seasonal_map %>% 
+m2 <- seasonal_map %>% 
   group_by(lon, lat, c, r, onset, cessation) %>% 
   dplyr::summarize() %>%
   dplyr::ungroup() %>% 
@@ -81,17 +80,17 @@ m <- seasonal_map %>%
       summarise(onset = which.min(cum_anomaly_onset),
                 cessation = which.max(cum_anomaly_cessation)) %>%
 
-      dplyr::summarise(mk_onset = trend::mk.test(onset) %>% .$p.value,
-                sen_onset = trend::sens.slope(onset) %>% .$estimates %>% as.numeric(),
-                mk_cessation = trend::mk.test(cessation) %>% .$p.value,
-                sen_cessation = trend::sens.slope(cessation) %>% .$estimates %>% as.numeric()) %>%
+      # dplyr::summarise(mk_onset = trend::mk.test(onset) %>% .$p.value,
+      #           sen_onset = trend::sens.slope(onset) %>% .$estimates %>% as.numeric(),
+      #           mk_cessation = trend::mk.test(cessation) %>% .$p.value,
+      #           sen_cessation = trend::sens.slope(cessation) %>% .$estimates %>% as.numeric()) %>%
 
       mutate(lon = lon,
              lat = lat)
     
   })
 
-mk <- m %>% 
+mk <- m2 %>% 
   select(mk_onset, mk_cessation, lon, lat) %>% 
   gather(1:2, key = seas, val = mk) %>% 
   mutate(mk = ifelse(mk < 0.1, 1, NA),
@@ -99,7 +98,7 @@ mk <- m %>%
          seas = factor(seas, levels = c("onset", "cessation"))) %>% 
   filter(!is.na(mk))
 
-m %>% 
+m2 %>% 
   select(sen_onset, sen_cessation, lon, lat) %>% 
   gather(1:2, key = seas, val = sen) %>% 
   mutate(seas = str_sub(seas, start = 5),
@@ -251,4 +250,59 @@ precip_ts <- chirps_stars %>%
          year = ifelse(doy >= cessation, year+1, year))
 
 
+## Get mean pixel value across time series aggregated by DOY
+precip_ts_mean <- chirps_stars %>% 
+  st_apply(c(1:2), function(m) {
+    mean(m, na.rm = T)
+  }) %>% 
+  do.call("cbind",.) %>% 
+  replicate(length(st_get_dimension_values(chirps_stars, 'time')),.) %>% # duplicate by length of main precip time series
+  as.vector()
 
+## Add mean precipitation pixels as attribute
+precip_ts_anomaly <- precip_ts %>% 
+  mutate(pr_mean = precip_ts_mean, 
+         anomaly = units::drop_units(pr) - pr_mean) # subtract pixels for each time slice by mean precip
+
+## Calculate cumulative sum
+precip_ts_cum <-  precip_ts_anomaly[8,,,] %>% 
+  aggregate(by = "1 years", cumsum) %>% 
+  aperm(c(2,3,1))
+dimnames(precip_doy_mean)[[3]] <- "doy" # rename dimension
+
+## Another option...
+cum_anomaly_yr <- tapply(precip_ts_anomaly$anomaly, precip_ts_anomaly$year, cumsum) %>% as.vector() %>% unlist()
+precip_yr_seas <- precip_ts_anomaly %>% mutate(cum_anomaly = cum_anomaly_yr,
+                             cum_anomaly_onset = ifelse(onset - 60 <= doy & onset + 60 >= doy, cum_anomaly, NA),
+                             cum_anomaly_cessation = ifelse(cessation - 60 <= doy & cessation + 60 >= doy, cum_anomaly, NA))
+
+
+onset_ts <- precip_yr_seas %>% 
+  select(cum_anomaly_onset) %>% 
+  st_apply(1:2, function (i) {
+    onset <- which.min(i)
+  }, 
+  .fname = "onset_ts") %>% 
+  do.call("cbind",.) %>% 
+  replicate(length(st_get_dimension_values(precip_comb, 'doy')),.) %>% # duplicate by length of precip_doy_mean
+  as.vector()
+
+cessation_ts <- precip_yr_seas %>% 
+  select(cum_anomaly_cessation) %>% 
+  st_apply(1:2, function (i) {
+    cessation <- which.max(i)
+  }, 
+  .fname = "cessation" ) %>% 
+  do.call("cbind",.) %>% 
+  replicate(length(st_get_dimension_values(precip_comb, 'doy')),.) %>% # duplicate by length of precip_doy_mean
+  as.vector()
+
+
+  
+  summarise(onset = which.min(cum_anomaly_onset),
+            cessation = which.max(cum_anomaly_cessation)) %>%
+  
+  dplyr::summarise(mk_onset = trend::mk.test(onset) %>% .$p.value,
+                   sen_onset = trend::sens.slope(onset) %>% .$estimates %>% as.numeric(),
+                   mk_cessation = trend::mk.test(cessation) %>% .$p.value,
+                   sen_cessation = trend::sens.slope(cessation) %>% .$estimates %>% as.numeric()) %>%
