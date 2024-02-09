@@ -7,14 +7,15 @@
 library(stars)
 library(tidyverse)
 library(furrr)
+library(units)
 
 
 # Define working directories
 ## Set source folder and destination folder paths
-from_dir <- "/home/cwilliams/cmip6_directory/kgassert_TEMP/Chiapas/pr"
+from_dir <- "/home/cwilliams/cmip6_directory/Chiapas/"
 
 # Set working directory for data downloads and reading in files
-working_dir <- "/home/cwilliams/persistent_disk/chiapas/precip/data/"
+working_dir <- "/home/cwilliams/persistent_disk/chiapas/data/tas/"
 
 # Set project directory
 project_dir <- "/home/cwilliams/persistent_disk/chiapas/chiapas_analysis"
@@ -26,8 +27,8 @@ results_dir <- "/home/cwilliams/persistent_disk/chiapas/precip/results/"
 model <- "GFDL-CM4"
 
 # Copy data files from source to working directory
-# ########### Uncomment below code chunk to copy files for first time ###########
-# ## List and copy files from cmip6_data bucket to persistent drive
+########### Uncomment below code chunk to copy files for first time ###########
+## List and copy files from cmip6_data bucket to persistent drive
 # from_dir %>%
 #   list.files(full.names = TRUE, pattern = model) %>%
 #   map(function(f) {

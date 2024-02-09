@@ -8,6 +8,8 @@ precip_file <-
   working_dir %>% 
   list.files(full.names = T, pattern = model) # model defined in run_model
 
+precip_file <- precip_file[1]
+
 ## Extract time as vector
 time_vector <- 
   precip_file %>% 
