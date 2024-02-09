@@ -3,7 +3,7 @@
 
 # Seasonal Precipitation 
 ## Testing original code first
-chirps_stars <- precip[,60:70, 60:80,]
+chirps_stars <- precip[,60:70, 60:80,] # will update (testing a small subset and chirps stars name was so I coulp plug into old methods)
 
 
 # Determine Annual vs Biannual Season
