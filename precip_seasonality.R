@@ -3,10 +3,10 @@
 
 
 # Determine Annual vs Biannual Season
-## Harmonic function to get amplitude
-harmonic <- geoTS::haRmonics(precip$pr, numFreq = 1, delta = 0.1)
-## If ratio is > 1 then biannual if < 1 then annual regime
-ratio <- harmonic$amplitude[2]/harmonic$amplitude[1]
+# ## Harmonic function to get amplitude
+# harmonic <- geoTS::haRmonics(precip$pr, numFreq = 1, delta = 0.1)
+# ## If ratio is > 1 then biannual if < 1 then annual regime
+# ratio <- harmonic$amplitude[2]/harmonic$amplitude[1]
 
 
 # Calculate Daily Climatological Mean (DOY Averages) per Pixel
@@ -51,7 +51,7 @@ precip_mean <- precip_doy_mean %>%
     }) %>% 
     do.call("cbind",.)
 }) %>% map(function(d) {
-  d %>% replicate(366,.) %>%# duplicate by length of precip_doy_mean
+  d %>% replicate(366,.) %>%  # duplicate by length of precip_doy_mean
   as.vector()
 })
 
@@ -98,95 +98,97 @@ whichMaxNAs <- function(x){
   }
 }
 
+
 onset <- precip_comb %>% 
   map(function(p) {
     p %>% select(cum_anomaly) %>% 
-      st_apply(1:2, function(i) {
+      st_apply(c(1:2), function(i) {
         whichMinNAs(i)
-      }, .fname = "onset") 
-}) %>% 
-  map(function(d) {
-  d %>% 
-      do.call("c", .) #%>% 
-      # replicate(length(st_get_dimension_values(precip_comb, 'doy')),.) %>% # duplicate by length of precip_doy_mean
-      # as.vector()
-})
-
-
-precip_mean <- precip_doy_mean %>% 
-  map(function(p){
-    p %>% st_apply(c(1:2), function(m) {
-      mean(m)
-    }) %>% 
+      }, 
+      .fname = "onset") %>% 
       do.call("cbind",.)
   }) %>% map(function(d) {
-    d %>% replicate(366,.) %>%# duplicate by length of precip_doy_mean
+    d %>% replicate(366,.) %>% # duplicate by length of precip_doy_mean
       as.vector()
   })
-
-onset <- precip_comb %>% 
-  map(function(p){
-    p %>% select(cum_anomaly) %>% st_apply(c(1:2), function(m) {
-      which.min(m)
-    }) %>% 
-      do.call("cbind",.)
-  }) %>% map(function(d) {
-    d %>% replicate(366,.) %>%# duplicate by length of precip_doy_mean
-      as.vector()
-  })
-
-
-
-onset <- precip_comb[[1]] %>% 
-  select(cum_anomaly) %>% 
-  st_apply(1:2, function (i) {
-    onset <- whichMinNAs(i)
-  }, 
-  .fname = "onset") %>% 
-  do.call("cbind",.) %>% 
-  replicate(length(st_get_dimension_values(precip_comb, 'doy')),.) %>% # duplicate by length of precip_doy_mean
-  as.vector()
 
 cessation <- precip_comb %>% 
-  select(cum_anomaly) %>% 
-  st_apply(1:2, function (i) {
-    cessation <- which.max(i)
-  }, 
-  .fname = "cessation") %>% 
-  do.call("cbind",.) %>% 
-  replicate(length(st_get_dimension_values(precip_comb, 'doy')),.) %>% # duplicate by length of precip_doy_mean
-  as.vector()
+  map(function(p) {
+    p %>% select(cum_anomaly) %>% 
+      st_apply(c(1:2), function(i) {
+        whichMaxNAs(i)
+      }, 
+      .fname = "cessation") %>% 
+      do.call("cbind",.)
+  }) %>% map(function(d) {
+    d %>% replicate(366,.) %>% # duplicate by length of precip_doy_mean
+      as.vector()
+  })
 
+precip_seas1 <- precip_comb[[1]] %>%
+  mutate(onset = onset[[1]],
+         cessation = cessation[[1]])
+precip_seas2 <- precip_comb[[2]] %>%
+  mutate(onset = onset[[2]],
+         cessation = cessation[[2]])
+precip_seas3 <- precip_comb[[3]] %>%
+  mutate(onset = onset[[3]],
+         cessation = cessation[[3]])
 
-precip_seas <- precip_comb %>% 
-  mutate(onset = onset,
-         cessation = cessation)
+precip_seas <- list(precip_seas1, precip_seas2, precip_seas3)
+
+# COME BACK TO: pmap not working so using above method for now
+# precip_seas <- 
+#   pmap(precip_comb, onset, cessation, 
+#        function(m, o, c) {
+#          m %>% mutate(onset = as.vector(o),
+#                       cessation = as.vector(c))
+#   })  
+
 
 ## Visuals
-df <- precip_seas %>% 
-  as.tbl_cube.stars() %>% 
-  group_by(doy) %>% 
-  summarise(mean_pr = mean(pr),
-            mean_anom = mean(anomaly),
-            mean_cum_anom = mean(cum_anomaly, na.rm = T),
-            mean_onset = mean(onset),
-            mean_cessation = mean(cessation)) %>% 
-  as.data.frame()
+dfmap <- function(stars) {
+  stars %>% 
+    as.tbl_cube.stars() %>% 
+    group_by(doy) %>% 
+    summarise(mean_pr = mean(pr, na.rm = T),
+              mean_anom = mean(anomaly, na.rm = T),
+              mean_cum_anom = mean(cum_anomaly, na.rm = T),
+              mean_onset = mean(onset, na.rm = T),
+              mean_cessation = mean(cessation, na.rm = T)) %>% 
+    as.data.frame()
+}
+  
+df1 <- dfmap(precip_seas[[1]])
+df2 <- dfmap(precip_seas[[2]])
+df3 <- dfmap(precip_seas[[3]])
 
-precip_map <- ggplot(df, aes(x = doy, group =2)) +
-  geom_line(aes(y = mean_pr), color = "red") +
-  geom_line(aes(y = mean_anom), color = "blue") +
-  labs(x = "DOY", y = "Summarized Variable of Interest")
-precip_map
+precip_map <- function(df) {
+  ggplot(df, aes(x = doy, group =2)) +
+    geom_line(aes(y = mean_pr), color = "red") +
+    geom_line(aes(y = mean_anom), color = "blue") +
+    labs(x = "DOY", y = "Precipitation")
+}
 
-seasonality <- ggplot(df, aes(x = doy, group =2)) +
-  geom_line(aes(y = mean_cum_anom), color = "orange") +
-  geom_point(aes(x = mean_onset, y = -460), color = "green") +
-  geom_point(aes(x = mean_cessation, y = 97), color = "purple") +
-  labs(x = "DOY", y = "Summarized Variable of Interest")
-seasonality
+p1 <- precip_map(df1)
+p2 <- precip_map(df2)
+p3 <- precip_map(df3)
 
-## TESTING SECOND PART involving year
+cowplot::plot_grid(p1, p2, p3, ncol = 1)
+
+seasonality <- function(df, o, c) {
+  ggplot(df, aes(x = doy, group =2)) +
+    geom_line(aes(y = mean_cum_anom), color = "orange") +
+    geom_point(aes(x = mean_onset, y = o), color = "green") +
+    geom_point(aes(x = mean_cessation, y = c), color = "purple") +
+    labs(x = "DOY", y = "Summarized Variable of Interest")
+}
+s1 <- seasonality(df1, min(df1$mean_cum_anom), max(df1$mean_cum_anom))
+s2 <- seasonality(df2, min(df2$mean_cum_anom), max(df2$mean_cum_anom))
+s3 <- seasonality(df3, min(df3$mean_cum_anom), max(df3$mean_cum_anom))
+
+cowplot::plot_grid(s1, s2, s3, ncol = 1)
+
 ### Function to calculate attributes DOY, Year, etc.
 attr_calc <- function(s, r) {
   s %>% 
@@ -202,17 +204,36 @@ doy_calc <- attr_calc(yday(st_get_dimension_values(precip, "time")), precip)
 year_calc <- attr_calc(year(st_get_dimension_values(precip, "time")), precip)
 
 ## Fill onset and cessation matrix to length of time series
-onset_att <- precip_seas[,,,1]$onset %>%   
-  replicate(length(st_get_dimension_values(precip, 'time')),.) %>% # duplicate by length of precip_doy_mean
+onset_att1 <- precip_seas1[,,,1]$onset %>%   
+  replicate(length(st_get_dimension_values(precip_periods[[1]], "time")),.) %>% # duplicate by length of precip_doy_mean
   as.vector()
 
-cessation_att <- precip_seas[,,,1]$cessation %>%   
-  replicate(length(st_get_dimension_values(precip, 'time')),.) %>% # duplicate by length of precip_doy_mean
+onset_att2 <- precip_seas2[,,,1]$onset %>%   
+  replicate(length(st_get_dimension_values(precip_periods[[2]], "time")),.) %>% # duplicate by length of precip_doy_mean
   as.vector()
+
+onset_att3 <- precip_seas3[,,,1]$onset %>%   
+  replicate(length(st_get_dimension_values(precip_periods[[3]], "time")),.) %>% # duplicate by length of precip_doy_mean
+  as.vector()
+
+cessation_att1 <- precip_seas1[,,,1]$cessation %>%   
+  replicate(length(st_get_dimension_values(precip_periods[[1]], "time")),.) %>% # duplicate by length of precip_doy_mean
+  as.vector()
+
+cessation_att2 <- precip_seas2[,,,1]$cessation %>%   
+  replicate(length(st_get_dimension_values(precip_periods[[2]], "time")),.) %>% # duplicate by length of precip_doy_mean
+  as.vector()
+
+cessation_att3 <- precip_seas3[,,,1]$cessation %>%   
+  replicate(length(st_get_dimension_values(precip_periods[[3]], "time")),.) %>% # duplicate by length of precip_doy_mean
+  as.vector()
+
+onset_att <- list(onset_att1, onset_att2, onset_att3) %>% unlist()
+cessation_att <- list(cessation_att1, cessation_att2, cessation_att3) %>% unlist()
 
 ## Add calculated attributes
-precip_ts <- precip %>% 
-  mutate(doy = doy_calc, 
+precip_ts <- precip %>%
+  mutate(doy = doy_calc,
          year = year_calc,
          onset = onset_att,
          cessation = cessation_att,
@@ -221,80 +242,80 @@ precip_ts <- precip %>%
          # year = ifelse(doy >= cessation, year+1, year)) # Do we need this year part? It was in the original code
 
 ## Get mean pixel value across time series aggregated by DOY
-precip_ts_mean <- precip %>% 
+precip_ts_mean <- precip_periods %>% map(m) %>%
   st_apply(c(1:2), function(m) {
     mean(m, na.rm = T)
-  }) %>% 
-  do.call("cbind",.) %>% 
-  replicate(length(st_get_dimension_values(precip, 'time')),.) %>% # duplicate by length of main precip time series
+  }) %>%
+  do.call("cbind",.) %>%
+  replicate(length(st_get_dimension_values(precip_periods[[1]], "time")),.) %>% # duplicate by length of main precip time series
   as.vector()
 
+
+precip_ts_mean <- precip_periods %>% 
+  map(function(p){
+    p %>% st_apply(c(1:2), function(m) {
+      mean(m)
+    }) %>% 
+      do.call("cbind",.)
+  }) %>% map(function(d) {
+    d %>% replicate(length(st_get_dimension_values(precip_periods[[3]], "time")),.) %>%  # duplicate by length of precip_doy_mean
+      as.vector()
+  })
+
+## From here below, need to continue updating for each period
 ## Add mean precipitation pixels as attribute
-precip_ts_anomaly <- precip_ts %>% 
-  mutate(pr_mean = precip_ts_mean, 
+precip_ts_anomaly <- precip_ts %>%
+  mutate(pr_mean = precip_ts_mean,
          anomaly = units::drop_units(pr) - pr_mean) # subtract pixels for each time slice by mean precip
 
 
-
 ## Calculate cumulative sum
-years <- 
-  year_range %>% 
+years <-
+  year_range %>%
   map(~slice(precip_ts_anomaly[8,,,], time, .x))
 
-precip_ts_cum <- years %>% 
+precip_ts_cum <- years %>%
   map(function(t){
     st_apply(t, c(1:2), function(t) {
       cumsum(t)
-    }, keep = T) %>% 
-      aperm(c(2,3,1)) 
-  }) %>% do.call("c",.) %>% 
-  mutate(cum_anomaly = anomaly) %>% 
+    }, keep = T) %>%
+      aperm(c(2,3,1))
+  }) %>% do.call("c",.) %>%
+  mutate(cum_anomaly = anomaly) %>%
   select(cum_anomaly)
 
 
 
 
 ## Combine anomaly and cumulative anomaly stars objects
-precip_ts_comb <- list(precip_ts_anomaly, precip_ts_cum) %>% 
-  do.call("c", .) %>% 
+precip_ts_comb <- list(precip_ts_anomaly, precip_ts_cum) %>%
+  do.call("c", .) %>%
   mutate(cum_anomaly_onset = ifelse(onset - 60 <= doy & onset + 60 >= doy, cum_anomaly, NA),
          cum_anomaly_cessation = ifelse(cessation - 60 <= doy & cessation + 60 >= doy, cum_anomaly, NA))
 
 # Calculate Onset and Cessation
-onset_ts <- precip_ts_comb %>% 
-  select(cum_anomaly_onset) %>% 
+onset_ts <- precip_ts_comb %>%
+  select(cum_anomaly_onset) %>%
   st_apply(1:2, function (i) {
     onset <- which.min(i)
-  }, 
-  .fname = "onset_ts", keep = T) %>% 
-  do.call("cbind",.) %>% 
+  },
+  .fname = "onset_ts", keep = T) %>%
+  do.call("cbind",.) %>%
   replicate(length(st_get_dimension_values(precip_ts_comb, 'time')),.) %>% # duplicate by length of precip_doy_mean
   as.vector()
 
-cessation_ts <- precip_ts_comb %>% 
-  select(cum_anomaly_cessation) %>% 
+cessation_ts <- precip_ts_comb %>%
+  select(cum_anomaly_cessation) %>%
   st_apply(1:2, function (i) {
     cessation <- which.max(i)
-  }, 
-  .fname = "cessation_ts", keep = T) %>% 
-  do.call("cbind",.) %>% 
+  },
+  .fname = "cessation_ts", keep = T) %>%
+  do.call("cbind",.) %>%
   replicate(length(st_get_dimension_values(precip_ts_comb, 'time')),.) %>% # duplicate by length of precip_doy_mean
   as.vector()
 
 
-precip_ts_seas <- precip_ts_comb %>% 
+precip_ts_seas <- precip_ts_comb %>%
   mutate(onset_ts = onset_ts,
          cessation_ts = cessation_ts)
-
-onset_stats <- precip_ts_seas[12,,,] %>% 
-  st_apply(1:2, function(a){
-    mk_onset  <-  trend::mk.test(a) %>% .$p.value
-    # sen_onset  <-  trend::sens.slope(onset) %>% .$estimates %>% as.numeric()
-  })
-
-cessation_stats <- precip_ts_seas[13,,,] %>% 
-  st_apply(1:2, function(a){
-     mk_cessation = trend::mk.test(cessation) %>% .$p.value
-     # sen_cessation = trend::sens.slope(cessation) %>% .$estimates %>% as.numeric()
-  })
 

@@ -5,8 +5,8 @@
 # Read and Process Precipitation Data
 ## Select file based on model name
 precip_file <- 
-  working_dir %>% 
-  list.files(full.names = T, pattern = model) # model defined in run_model
+  str_glue("{working_dir}pr") %>% 
+  list.files(full.names = T, pattern = str_glue("{model}_{ssp}")) # model defined in run_model
 
 precip_file <- precip_file[1]
 
