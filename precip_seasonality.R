@@ -10,42 +10,40 @@
 
 
 # Calculate Daily Climatological Mean (DOY Averages) per Pixel
-subset <- precip#[,60:70,60:70,1:720] # outputs NAs with larger file but works with smaller subset
-# 
-# test <- subset %>% 
-#   st_apply(c(1:2), function(x) {
-#     
-#     pr <- as.vector(x)
-#     t <- st_get_dimension_values(subset, "time")
-#     
-#     df <- cbind.data.frame(pr,t) %>% 
-#       mutate(year = year(t), doy = yday(t)) 
-#     
-#     s <- df %>% group_by(doy) %>%
-#       summarize(pr_mean = mean(pr)) %>%
-#       mutate(anomaly = pr_mean-mean(df$pr),
-#              cum_anomaly = cumsum(anomaly)) %>%
-#       summarize(onset = which.min(cum_anomaly),
-#                 cessation = which.max(cum_anomaly))
-# 
-#     df %>%
-#       mutate(seas = case_when(doy >= s$onset & doy < s$cessation ~ "wet",
-#                               TRUE ~ "dry"),
-#              year = ifelse(doy >= s$cessation, year+1, year)) %>%
-#       group_by(seas, year) %>%
-#       summarize(pr = sum(pr)) %>%
-#       mutate(onset = s$onset,
-#              cessation = s$cessation)
-#     
-# }) %>% suppressMessages()
-# 
-# test$pr[2,3]
+subset <- precip #[,60:62,60:62,] # outputs NAs with larger file but works with smaller subset
 
-system.time(testrf <- subset %>% 
-  st_apply(c(1:2), function(x) {
+
+# Calculate Daily Climatological Mean (DOY Averages) per Pixel
+## Get year start and end positions for aggregating throughout script
+year_positions <- pmatch(unique(year(st_get_dimension_values(subset, "time"))), 
+                         year(st_get_dimension_values(subset, "time")))
+endyear_positions <- year_positions-1
+endyear_positions <- c(endyear_positions[-1], dim(subset)[3] %>% as.numeric())
+
+year_range <- map2(year_positions, endyear_positions, 
+                   function(y, e){
+                     seq(y, e)
+                   })
+
+precip_periods <-
+  list(year_range[1:20] %>% unlist(), 
+       year_range[21:40] %>% unlist(),
+       year_range[41:60] %>% unlist()) %>%
+  map(~slice(subset, time, .x))
+
+
+system.time(testrf_periods <- precip_periods %>% map(function(p) {
+  p %>% st_apply(c(1:2), function(x) {
+    
+    if (any(is.na(x))) {
+      
+      rep(NA, length(x))
+      
+    } else {
+      
     
     pr <- as.vector(x)
-    t <- st_get_dimension_values(subset, "time")
+    t <- st_get_dimension_values(p, "time")
     
     df <- cbind.data.frame(pr,t) %>% 
       mutate(year = year(t), doy = yday(t)) 
@@ -55,11 +53,11 @@ system.time(testrf <- subset %>%
       mutate(anomaly = pr_mean-mean(df$pr),
              cum_anomaly = cumsum(anomaly)) %>%
       reframe(onset = which.min(cum_anomaly),
-                cessation = which.max(cum_anomaly), by = "doy")
+              cessation = which.max(cum_anomaly), by = "doy")
     
     timing <- df %>% 
-      mutate(o= s$onset %>% replicate(length(st_get_dimension_values(subset, "time")), .), 
-             c= s$cessation %>% replicate(length(st_get_dimension_values(subset, "time")), .),
+      mutate(o= s$onset %>% replicate(length(st_get_dimension_values(p, "time")), .), 
+             c= s$cessation %>% replicate(length(st_get_dimension_values(p, "time")), .),
              seas = case_when(doy >= o & doy < c ~ "wet",
                               TRUE ~ "dry"),
              year = ifelse(doy >= c, year+1, year)) %>%
@@ -80,7 +78,7 @@ system.time(testrf <- subset %>%
     #             cessation = as_date(mean(cessation)))
     # 
     # return(c(timing, perc, dates))
-
+    
     s <- df %>%
       mutate(pr_mean = mean(pr),
              anomaly = pr - pr_mean) %>% 
@@ -91,18 +89,12 @@ system.time(testrf <- subset %>%
              cum_anomaly_cessation = ifelse(as.numeric(timing$cessation) - 60 <= doy & as.numeric(timing$cessation) + 60 >= doy, cum_anomaly, NA)) %>%
       summarise(onset = which.min(cum_anomaly_onset),
                 cessation = which.max(cum_anomaly_cessation))
+    
+  }}) %>% suppressMessages()
+}))
 
-  }) %>% suppressMessages())
+testrf_periods[[1]]$pr[2,3]
 
-testrf$pr[2,3]
-# testrf$pr[60,70]
 
-# testrf %>% 
-#   st_apply(c(1:2), function(x){
-#     head(x$pr) 
-#     # %>% group_by(seas) %>%
-#     #     summarize(pr = mean(pr)) %>%
-#     #     mutate(pr = pr/sum(pr)*100)
-#   })
-# 
-# testrf %>% split("pr")
+## Output format - stars object with lat/lon dimensions. Time is show as each pixel has a data frame where rows = time
+## Not sure how to transform the result into something that is easy to work with.
