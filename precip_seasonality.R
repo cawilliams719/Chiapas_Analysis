@@ -10,7 +10,7 @@
 
 
 # Calculate Daily Climatological Mean (DOY Averages) per Pixel
-subset <- precip #[,60:62,60:62,] # outputs NAs with larger file but works with smaller subset
+subset <- precip[,80:81,70:71,] # outputs NAs with larger file but works with smaller subset
 
 
 # Calculate Daily Climatological Mean (DOY Averages) per Pixel
@@ -34,14 +34,8 @@ precip_periods <-
 
 system.time(testrf_periods <- precip_periods %>% map(function(p) {
   p %>% st_apply(c(1:2), function(x) {
-    
-    if (any(is.na(x))) {
       
-      rep(NA, length(x))
-      
-    } else {
-      
-    
+
     pr <- as.vector(x)
     t <- st_get_dimension_values(p, "time")
     
@@ -90,11 +84,10 @@ system.time(testrf_periods <- precip_periods %>% map(function(p) {
       summarise(onset = which.min(cum_anomaly_onset),
                 cessation = which.max(cum_anomaly_cessation))
     
-  }}) %>% suppressMessages()
+  }) %>% suppressMessages()
 }))
 
-testrf_periods[[1]]$pr[2,3]
-
+testrf_periods[[1]]$pr[1,2]
 
 ## Output format - stars object with lat/lon dimensions. Time is show as each pixel has a data frame where rows = time
 ## Not sure how to transform the result into something that is easy to work with.
