@@ -5,8 +5,8 @@
 # Read and Process Precipitation Data
 ## Select file based on model name
 precip_file <- 
-  str_glue("{working_dir}pr") %>% 
-  list.files(full.names = T, pattern = str_glue("{model}_{ssp}")) # model defined in run_model
+  str_glue("{working_dir}") %>% 
+  list.files(full.names = T, pattern = "pr") 
 
 precip_file <- precip_file[1]
 
@@ -94,6 +94,7 @@ change_merge <-
 ## Combine subtracted and percent change results by period
 change1 <- change_merge(subtracted1, perchangeim1)
 change2 <- change_merge(subtracted2, perchangeim2)
+change <- c(change1, change2, along = "time_period")
 
 # Precipitation Extremes
 # Calculate Annual Precipitation (Maximum) per Time Period

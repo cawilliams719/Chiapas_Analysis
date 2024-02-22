@@ -38,11 +38,11 @@ time_last <-
   which.min(time_vector < PCICt::as.PCICt("2061-01-01", cal = model_cal))
 
 
-
 # load data
 ff <- 
   working_dir %>% 
   fs::dir_ls()
+
 
 ff <- 
   ff %>%
@@ -51,7 +51,8 @@ ff <-
 vars <- 
   ff %>% 
   str_split("_") %>% 
-  map_chr(~.x[[5]])
+  map_chr(~.x[[4]]) # this may vary based on files ...
+
 
 l_s <- 
   ff %>% 
@@ -87,7 +88,7 @@ l_s <-
     a <-
       aggregate(s, by = "1 month", FUN = eval(parse(text = fun_agg))) %>%
       aperm(c(2,3,1))
-    
+
     a <- a %>% setNames(i)
     
     return(a)
@@ -95,8 +96,8 @@ l_s <-
   })
 
 
-write_rds(l_s, str_glue("{working_dir}/l_s.rds"))
-read_rds(str_glue("{working_dir}/l_s.rds")) -> l_s
+write_rds(l_s, str_glue("{results_dir}l_s.rds"))
+read_rds(str_glue("{results_dir}l_s.rds")) -> l_s
 
 
 # calculate pet
@@ -148,7 +149,7 @@ s_drought_perc <-
         matrix(ncol = 12, byrow = T) %>% 
         apply(2, FUN = function(u) {
           
-          f_ecdf <- ecdf(u[1:50]) # baseline
+          f_ecdf <- ecdf(u[1:30]) # baseline
           
           f_ecdf(u)
           
@@ -170,7 +171,7 @@ prob_extr_drought_perc <-
   aperm(c(2,3,1))
 
 
-s_drought_perc_nr <- 
+s_drought_gamma <- 
   s_wb %>% 
   st_apply(c(1,2), function(x) {
     
@@ -181,123 +182,87 @@ s_drought_perc_nr <-
     } else {
       
       x %>% 
-        # zoo::rollsum(k = int_window, na.pad = T, align = "right") %>%
+        zoo::rollsum(k = int_window, na.pad = T, align = "right") %>% 
         matrix(ncol = 12, byrow = T) %>% 
         apply(2, FUN = function(u) {
           
-          f_ecdf <- ecdf(u[1:50]) # baseline
+          u_bl <- u[1:30]
           
-          f_ecdf(u)
+          u_min <- min(u_bl, na.rm = T) - 0.00001
+          
+          u1 <- u_bl - u_min
+          
+          lmoms <-
+            lmom::samlmu(u1)
+          
+          params <-
+            lmom::pelgam(lmoms)
+          
+          lmom::cdfgam(u - u_min, params)
           
         }) %>% 
         t() %>% 
         as.vector()
-      
     }
   },
-  FUTURE = T,
   .fname = "time") %>% 
   aperm(c(2,3,1)) %>% 
   st_set_dimensions(3, values = time_vector_m)
 
-prob_extr_drought_perc_nr <- 
-  s_drought_perc_nr %>% 
+prob_extr_drought_gamma <- 
+  s_drought_gamma %>% 
   filter(year(time) >= 2001) %>% 
   aggregate(by = "20 years", FUN = function(x) mean(x <= 0.1)) %>% 
   aperm(c(2,3,1))
 
-
-
-# ignore
-
-{
-  s_drought_gamma <- 
-    s_wb %>% 
-    st_apply(c(1,2), function(x) {
+# how well gamma fits obs data?
+s_gamma_gof <- 
+  s_wb %>% 
+  st_apply(c(1,2), function(x) {
+    
+    if (any(is.na(x))) {
       
-      if (any(is.na(x))) {
-        
-        rep(NA, length(x))
-        
-      } else {
-        
-        x %>% 
-          zoo::rollsum(k = int_window, na.pad = T, align = "right") %>% 
-          matrix(ncol = 12, byrow = T) %>% 
-          apply(2, FUN = function(u) {
-            
-            u_bl <- u[1:30]
-            
-            u_min <- min(u_bl, na.rm = T) - 0.00001
-            
-            u1 <- u_bl - u_min
-            
-            lmoms <-
-              lmom::samlmu(u1)
-            
-            params <-
-              lmom::pelgam(lmoms)
-            
-            lmom::cdfgam(u - u_min, params)
-            
-          }) %>% 
-          t() %>% 
-          as.vector()
-      }
-    },
-    .fname = "time") %>% 
-    aperm(c(2,3,1)) %>% 
-    st_set_dimensions(3, values = time_vector_m)
-  
-  
-  # how well gamma fits obs data?
-  s_gamma_gof <- 
-    s_wb %>% 
-    st_apply(c(1,2), function(x) {
+      rep(NA, 12)
       
-      if (any(is.na(x))) {
-        
-        rep(NA, 12)
-        
-      } else {
-        
-        x %>% 
-          zoo::rollsum(k = int_window, na.pad = T, align = "right") %>% 
-          matrix(ncol = 12, byrow = T) %>% 
-          apply(2, FUN = function(u) {
-            
-            u_bl <- u[1:30]
-            
-            u_min <- min(u_bl, na.rm = T) - 0.00001
-            
-            u1 <- u_bl - u_min
-            
-            lmoms <-
-              lmom::samlmu(u1)
-            
-            params <-
-              lmom::pelgam(lmoms)
-            
-            na <- which(is.na(u_bl))
-            
-            if (length(na) < 1) na <- 9999
-            
-            cor.test(
-              # method = "spearman",
-              sort(u_bl[-na]),
-              lmom::quagam(seq(0.01, 0.99, length.out = length(u_bl)),
-                           para = params) %>%
-                .[-na]
-              #{. + u_min}
-            )$estimate
-            
-          }) %>% 
-          as.vector()
-      }
-    },
-    .fname = "month") %>% 
-    aperm(c(2,3,1))
-  }
+    } else {
+      
+      x %>% 
+        zoo::rollsum(k = int_window, na.pad = T, align = "right") %>% 
+        matrix(ncol = 12, byrow = T) %>% 
+        apply(2, FUN = function(u) {
+          
+          u_bl <- u[1:30]
+          
+          u_min <- min(u_bl, na.rm = T) - 0.00001
+          
+          u1 <- u_bl - u_min
+          
+          lmoms <-
+            lmom::samlmu(u1)
+          
+          params <-
+            lmom::pelgam(lmoms)
+          
+          na <- which(is.na(u_bl))
+          
+          if (length(na) < 1) na <- 9999
+          
+          cor.test(
+            # method = "spearman",
+            sort(u_bl[-na]),
+            lmom::quagam(seq(0.01, 0.99, length.out = length(u_bl)),
+                         para = params) %>%
+              .[-na]
+            #{. + u_min}
+          )$estimate
+          
+        }) %>% 
+        as.vector()
+    }
+  },
+  .fname = "month") %>% 
+  aperm(c(2,3,1))
+
 
 int_window <- 12
 
@@ -306,18 +271,18 @@ s_drought_spei <-
   st_apply(c(1,2), function(x) {
     
     if (any(is.na(x))) {
-      
+
       rep(NA, length(x))
-      
+
     } else {
       
-      SPEI::spei(x, scale = int_window, ref.end = c(50,12), verbose = F)$fitted
+      SPEI::spei(data = x, scale = int_window, ref.end = c(30,12), verbose = F)$fitted
       
-    }
+     }
   },
   FUTURE = T,
-  .fname = "time") %>% 
-  aperm(c(2,3,1)) %>% 
+  .fname = "time") %>%
+  aperm(c(2,3,1)) %>%
   st_set_dimensions(3, values = time_vector_m)
 
 prob_extr_drought_spei <- 
@@ -326,12 +291,54 @@ prob_extr_drought_spei <-
   aggregate(by = "20 years", FUN = function(x) mean(x <= -1.25)) %>% 
   aperm(c(2,3,1))
 
+## Combining Results
+drought <- c(s_drought_perc, s_drought_gamma, s_drought_spei) %>% 
+  rename("ecdf" = "pr", "gamma" = "pr.1", "spei" = "pr.2")
+
+extreme_drought <- c(prob_extr_drought_perc, prob_extr_drought_spei) %>% 
+  rename("ecdf" = "pr", "spei" = "pr.1")
 
 
-
-
-
-
-# foo <- units::set_units(1, W/m^2) # == J/s/m^2 ( rsds = srad * dayl / 86400 )
-# foo %>% units::set_units(MJ/d/m^2)
+### TESTING ST_APPLY MERGE
+# test <- s_wb[,10:11, 70:72, 1] %>% 
+#   st_apply(c(1,2), function(x) {
+#     
+#     # y <- cumsum(x) %>% as.vector()
+#     # x <- cumsum(y) %>% as.vector()
+#     
+#     # a <- as.vector(x)
+#     # b <- st_get_dimension_values(s_wb, "time") %>% 
+#     #   as.vector()
+# 
+# 
+#     if (any(is.na(x))) {
+# 
+#       rep(NA, length(x))
+# 
+#     } else {
+# 
+#       return(x)
+# 
+#     }
+# 
+#     if (any(is.na(x))) {
+# 
+#       rep(NA, 12)
+# 
+#     } else {
+# 
+#       return(y <- x)
+# 
+#     }
+# 
+#     results <-
+#       c(x, y) %>%
+#       set_names(c("pr1", "pr2"))
+# 
+#     return(results)
+#     
+# }, FUTURE = T, .fname = "dup") %>% 
+#   split("dup")
+# %>% 
+#   aperm(c(2,3,1)) 
 

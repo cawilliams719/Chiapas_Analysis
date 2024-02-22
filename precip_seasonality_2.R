@@ -9,12 +9,9 @@ library(units)
 plan(multisession)
 
 
-model <- "GFDL-CM4"
-
-
-
 f <- 
-  "/mnt/pers_disk/chiapas_cmip6_basd/Chiapas_pr_GFDL-CM4_ssp245_1971-2100_ds_bil_daymet_then_ba.nc"
+  str_glue("{working_dir}") %>% 
+  list.files(full.names = T, pattern = "pr") 
 #   working_dir %>% 
 #   fs::dir_ls() %>% 
 #   first()
@@ -131,7 +128,7 @@ l_seas <-
 
 
 # Convert to single stars obj
-do.call(c, c(l_seas, along = "time_preriod")) %>% 
+l_seas <- do.call(c, c(l_seas, along = "time_period")) %>% 
   split("seas")
 
 
